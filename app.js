@@ -1,7 +1,7 @@
 const express = require('express');
 const app = express();
 const userModel = require("./modules/user");
-const psotModel = require("./modules/post");
+const postModel = require("./modules/post");
 const cookieParser = require('cookie-parser');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken')
@@ -24,9 +24,27 @@ app.get('/login' ,(req, res) => {
 
 
 //this a post to tell that it is a progile route
-app.get('/profile',isloggedin ,(req, res) => {
-    console.log(req.user);
-    res.render("login");
+app.get('/profile', isloggedin, async (req, res) => {
+    let user = await userModel
+        .findOne({ email: req.user.email })
+        .populate("posts");
+
+    res.render("profile", { user });
+});
+
+
+app.post('/post',isloggedin ,async (req, res) => {
+    let user = await userModel.findOne({email:req.user.email});
+    let {content} = req.body;
+    let post = await postModel.create({
+        user:user._id,
+        content
+    })
+
+    user.posts.push(post._id);
+     await user.save();
+    res.redirect('/profile'); 
+
 });
 
 //register page for the checking if user exists or not
@@ -66,11 +84,9 @@ app.post('/login', async (req, res) => {
         if(result){
             let token = jwt.sign({email:email , userid:user._id}, "sec");
             res.cookie("token",token);
-            res.status(200).send("you can login");
-            
-        } 
-        else res.redirect("/login");
-    })
+            res.status(200).redirect("/login");
+        } else res.redirect("/login");
+    } );
 
 });
 
@@ -84,7 +100,7 @@ app.get('/logout', (req, res) => {
 
 //middleware here for the profile page  is (islogedin)
 function isloggedin(req,res,next){
-    if(req.cookies.token === "") res.send("You must login first");
+    if(req.cookies.token === "") res.redirect("/login");
     else{
         let data = jwt.verify(req.cookies.token, "sec");
         req.user = data;
@@ -92,4 +108,4 @@ function isloggedin(req,res,next){
     }
 }
 
-app.listen(3000);  
+app.listen(3000);
